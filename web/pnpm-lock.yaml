@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      '@liberte-top/auth':
+        specifier: file:../../packages/npm/auth
+        version: file:../../packages/npm/auth
       axios:
         specifier: 1.7.9
         version: 1.7.9
@@ -181,6 +184,9 @@ packages:
 
   '@jridgewell/trace-mapping@0.3.31':
     resolution: {integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==}
+
+  '@liberte-top/auth@file:../../packages/npm/auth':
+    resolution: {directory: ../../packages/npm/auth, type: directory}
 
   '@rollup/rollup-android-arm-eabi@4.59.0':
     resolution: {integrity: sha512-upnNBkA6ZH2VKGcBj9Fyl9IGNPULcjXRlg0LLeaioQWueH30p6IXtJEbKAgvyv+mJaMxSm1l6xwDXYjpEMiLMg==}
@@ -646,6 +652,8 @@ snapshots:
     dependencies:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
+
+  '@liberte-top/auth@file:../../packages/npm/auth': {}
 
   '@rollup/rollup-android-arm-eabi@4.59.0':
     optional: true

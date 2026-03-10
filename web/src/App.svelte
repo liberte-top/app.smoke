@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import axios from "axios";
+  import { createAuth } from "@liberte-top/auth";
 
   const envLabel = import.meta.env.VITE_ENV_LABEL ?? "local";
   const http = axios.create();
@@ -16,13 +17,18 @@
     notes: Array<{ id: string; title: string; summary: string }>;
   };
 
+  const auth = createAuth({ authDomain: "auth.liberte.top" });
+
   let healthText = "loading";
   let viewer: Viewer | null = null;
   let notes: NotesResponse | null = null;
   let errorText = "";
+  let authState = auth.snapshot();
 
   onMount(async () => {
     try {
+      authState = await auth.refresh();
+
       const [health, viewerRes, notesRes] = await Promise.all([
         http.get("/api/v1/health"),
         http.get("/api/v1/viewer"),
@@ -32,6 +38,7 @@
       healthText = health.data.status;
       viewer = viewerRes.data;
       notes = notesRes.data;
+      authState = auth.snapshot();
     } catch (error) {
       healthText = "unreachable";
       errorText = error instanceof Error ? error.message : "request failed";
@@ -54,6 +61,14 @@
     <h2>Gateway-provided identity</h2>
     {#if viewer}
       <pre>{JSON.stringify(viewer, null, 2)}</pre>
+      <div class="scope-demo">
+        <span class:ok={auth.scopes.any(["notes:read"])}>notes:read</span>
+        <span class:ok={auth.scopes.all(["notes:read", "profile:read"])}>
+          notes:read + profile:read
+        </span>
+        <button disabled={!auth.scopes.all(["notes:write"])}>write action</button>
+      </div>
+      <pre>{JSON.stringify(authState, null, 2)}</pre>
     {:else}
       <p>{errorText || "Loading viewer context..."}</p>
     {/if}
@@ -101,5 +116,28 @@
     white-space: pre-wrap;
     word-break: break-word;
     font-size: 0.92rem;
+  }
+
+  .scope-demo {
+    margin-top: 1rem;
+    display: flex;
+    gap: 0.75rem;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+
+  .scope-demo span,
+  .scope-demo button {
+    border-radius: 999px;
+    border: 1px solid rgba(29, 39, 51, 0.14);
+    padding: 0.35rem 0.7rem;
+    background: #f4efe6;
+    color: #6c7784;
+  }
+
+  .scope-demo .ok {
+    background: #dff2e4;
+    color: #215f35;
+    border-color: rgba(33, 95, 53, 0.2);
   }
 </style>

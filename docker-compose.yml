@@ -1,0 +1,22 @@
+services:
+  api:
+    build:
+      context: ./api
+    environment:
+      PORT: "${API_PORT:-4310}"
+    ports:
+      - "${API_PORT:-4310}:4310"
+    networks:
+      default:
+        aliases:
+          - smoke-api
+
+  web:
+    build:
+      context: ./web
+      args:
+        VITE_ENV_LABEL: ${WEB_VITE_ENV_LABEL:-compose}
+    ports:
+      - "${WEB_PUBLIC_PORT:-6180}:80"
+    depends_on:
+      - api

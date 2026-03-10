@@ -1,0 +1,41 @@
+name: ci.deploy.api
+
+on:
+  workflow_dispatch: {}
+  push:
+    branches:
+      - main
+    paths:
+      - "api/**"
+      - "docker-compose.yml"
+      - ".github/workflows/ci.deploy.api.yml"
+  pull_request:
+    paths:
+      - "api/**"
+      - "docker-compose.yml"
+      - ".github/workflows/ci.deploy.api.yml"
+
+jobs:
+  build-test-api:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: api
+
+      - name: Run tests
+        working-directory: api
+        run: cargo test --locked
+
+      - name: Build API image
+        run: docker build ./api

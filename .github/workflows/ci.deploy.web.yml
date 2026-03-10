@@ -1,0 +1,49 @@
+name: ci.deploy.web
+
+on:
+  workflow_dispatch: {}
+  push:
+    branches:
+      - main
+    paths:
+      - "web/**"
+      - "docker-compose.yml"
+      - ".github/workflows/ci.deploy.web.yml"
+  pull_request:
+    paths:
+      - "web/**"
+      - "docker-compose.yml"
+      - ".github/workflows/ci.deploy.web.yml"
+
+jobs:
+  build-test-web:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22.18.0"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.28.0
+
+      - name: Install dependencies
+        working-directory: web
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Build web
+        working-directory: web
+        env:
+          VITE_ENV_LABEL: ci
+        run: pnpm build
+
+      - name: Build web image
+        run: docker build ./web

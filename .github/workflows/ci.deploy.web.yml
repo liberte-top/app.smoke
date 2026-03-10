@@ -52,7 +52,7 @@ jobs:
         run: pnpm build
 
       - name: Build web image
-        run: docker build ./web
+        run: docker build -f ./web/Dockerfile ..
 
       - name: Setup Buildx
         if: github.event_name != 'pull_request'
@@ -70,7 +70,8 @@ jobs:
         if: github.event_name != 'pull_request'
         uses: docker/build-push-action@v6
         with:
-          context: ./web
+          context: ..
+          file: ./app.smoke/web/Dockerfile
           push: true
           tags: |
             ghcr.io/liberte-top/app-smoke-web:main

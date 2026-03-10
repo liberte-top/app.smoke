@@ -103,8 +103,6 @@ jobs:
           title: "chore: promote smoke-api image"
           body: |
             Update `smoke-api` to `ghcr.io/liberte-top/app-smoke-api:sha-${{ github.sha }}`.
-          labels: |
-            automated
 
       - name: Enable PR auto-merge
         if: github.event_name != 'pull_request' && steps.create_pr.outputs.pull-request-number != ''

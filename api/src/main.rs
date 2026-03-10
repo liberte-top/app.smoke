@@ -11,12 +11,19 @@ use handler::notes::AppState;
 
 #[derive(OpenApi)]
 #[openapi(
-    paths(handler::health::health, handler::notes::viewer, handler::notes::list_notes),
+    paths(
+        handler::health::health,
+        handler::notes::viewer,
+        handler::notes::list_notes,
+        handler::notes::create_note,
+    ),
     components(schemas(
         handler::health::Health,
         handler::notes::ViewerContext,
         handler::notes::NoteSummary,
         handler::notes::NotesResponse,
+        handler::notes::CreateNote,
+        handler::notes::CreateNoteResponse,
     ))
 )]
 struct ApiDoc;

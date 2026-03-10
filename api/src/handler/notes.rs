@@ -4,7 +4,7 @@ use axum::{
     routing::get,
     Json, Router,
 };
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use utoipa::ToSchema;
 
@@ -29,6 +29,17 @@ pub struct NoteSummary {
 pub struct NotesResponse {
     pub viewer: ViewerContext,
     pub notes: Vec<NoteSummary>,
+}
+
+#[derive(Deserialize, ToSchema)]
+pub struct CreateNote {
+    pub title: String,
+}
+
+#[derive(Serialize, ToSchema)]
+pub struct CreateNoteResponse {
+    pub accepted: bool,
+    pub title: String,
 }
 
 #[utoipa::path(
@@ -66,6 +77,25 @@ pub async fn list_notes(
     })
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/v1/notes",
+    request_body = CreateNote,
+    responses((status = 201, description = "Accepted note creation", body = CreateNoteResponse))
+)]
+pub async fn create_note(
+    State(_state): State<Arc<AppState>>,
+    Json(payload): Json<CreateNote>,
+) -> (axum::http::StatusCode, Json<CreateNoteResponse>) {
+    (
+        axum::http::StatusCode::CREATED,
+        Json(CreateNoteResponse {
+            accepted: true,
+            title: payload.title,
+        }),
+    )
+}
+
 fn viewer_from_headers(headers: &HeaderMap) -> ViewerContext {
     ViewerContext {
         subject: header_value(headers, "x-auth-subject"),
@@ -93,6 +123,6 @@ fn header_value(headers: &HeaderMap, name: &str) -> Option<String> {
 pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/api/v1/viewer", get(viewer))
-        .route("/api/v1/notes", get(list_notes))
+        .route("/api/v1/notes", get(list_notes).post(create_note))
         .with_state(state)
 }

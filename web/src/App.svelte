@@ -24,6 +24,7 @@
   let notes: NotesResponse | null = null;
   let errorText = "";
   let authState = auth.snapshot();
+  let writeResult = "not attempted";
 
   onMount(async () => {
     try {
@@ -44,6 +45,15 @@
       errorText = error instanceof Error ? error.message : "request failed";
     }
   });
+
+  async function tryWrite() {
+    try {
+      await http.post("/api/v1/notes", { title: "blocked-by-scope" });
+      writeResult = "unexpected success";
+    } catch (error: any) {
+      writeResult = `status ${error?.response?.status ?? "unknown"}`;
+    }
+  }
 </script>
 
 <main>
@@ -66,9 +76,10 @@
         <span class:ok={auth.scopes.all(["notes:read", "profile:read"])}>
           notes:read + profile:read
         </span>
-        <button disabled={!auth.scopes.all(["notes:write"])}>write action</button>
+        <button disabled={!auth.scopes.all(["notes:write"])} on:click={tryWrite}>write action</button>
       </div>
       <pre>{JSON.stringify(authState, null, 2)}</pre>
+      <p>write smoke result: <strong>{writeResult}</strong></p>
     {:else}
       <p>{errorText || "Loading viewer context..."}</p>
     {/if}

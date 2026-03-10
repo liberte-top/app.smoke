@@ -25,20 +25,8 @@
     try {
       const [health, viewerRes, notesRes] = await Promise.all([
         http.get("/api/v1/health"),
-        http.get("/api/v1/viewer", {
-          headers: {
-            "x-auth-subject": "demo-user",
-            "x-auth-type": "session",
-            "x-auth-scopes": "notes:read profile:read",
-          },
-        }),
-        http.get("/api/v1/notes", {
-          headers: {
-            "x-auth-subject": "demo-user",
-            "x-auth-type": "session",
-            "x-auth-scopes": "notes:read profile:read",
-          },
-        }),
+        http.get("/api/v1/viewer"),
+        http.get("/api/v1/notes"),
       ]);
 
       healthText = health.data.status;

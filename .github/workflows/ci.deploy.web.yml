@@ -35,6 +35,12 @@ jobs:
         with:
           version: 10.28.0
 
+      - name: Checkout packages repo for local-link dependency
+        run: |
+          set -euo pipefail
+          rm -rf ../packages
+          git clone "https://x-access-token:${{ secrets.KUBERNETES_REPO_TOKEN }}@github.com/liberte-top/packages.git" ../packages
+
       - name: Install dependencies
         working-directory: web
         run: pnpm install --no-frozen-lockfile

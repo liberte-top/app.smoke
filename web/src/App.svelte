@@ -1,7 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import axios from "axios";
-  import { createAuth } from "@liberte-top/auth";
 
   const envLabel = import.meta.env.VITE_ENV_LABEL ?? "local";
   const http = axios.create();
@@ -17,19 +16,47 @@
     notes: Array<{ id: string; title: string; summary: string }>;
   };
 
-  const auth = createAuth({ authDomain: "auth.liberte.top" });
+  type AuthState = {
+    ready: boolean;
+    authenticated: boolean;
+    subject: string | null;
+    authType: string | null;
+    scopes: string[];
+  };
 
   let healthText = "loading";
   let viewer: Viewer | null = null;
   let notes: NotesResponse | null = null;
   let errorText = "";
-  let authState = auth.snapshot();
+  let authState: AuthState = {
+    ready: false,
+    authenticated: false,
+    subject: null,
+    authType: null,
+    scopes: [],
+  };
   let writeResult = "not attempted";
+
+  function hasAnyScope(required: string[]) {
+    return required.some((scope) => authState.scopes.includes(scope));
+  }
+
+  function hasAllScopes(required: string[]) {
+    return required.every((scope) => authState.scopes.includes(scope));
+  }
+
+  function syncAuthState(nextViewer: Viewer | null) {
+    authState = {
+      ready: true,
+      authenticated: Boolean(nextViewer?.subject),
+      subject: nextViewer?.subject ?? null,
+      authType: nextViewer?.auth_type ?? null,
+      scopes: nextViewer?.scopes ?? [],
+    };
+  }
 
   onMount(async () => {
     try {
-      authState = await auth.refresh();
-
       const [health, viewerRes, notesRes] = await Promise.all([
         http.get("/api/v1/health"),
         http.get("/api/v1/viewer"),
@@ -39,10 +66,11 @@
       healthText = health.data.status;
       viewer = viewerRes.data;
       notes = notesRes.data;
-      authState = auth.snapshot();
+      syncAuthState(viewer);
     } catch (error) {
       healthText = "unreachable";
       errorText = error instanceof Error ? error.message : "request failed";
+      syncAuthState(null);
     }
   });
 
@@ -72,11 +100,11 @@
     {#if viewer}
       <pre>{JSON.stringify(viewer, null, 2)}</pre>
       <div class="scope-demo">
-        <span class:ok={auth.scopes.any(["notes:read"])}>notes:read</span>
-        <span class:ok={auth.scopes.all(["notes:read", "profile:read"])}>
+        <span class:ok={hasAnyScope(["notes:read"])}>notes:read</span>
+        <span class:ok={hasAllScopes(["notes:read", "profile:read"])}>
           notes:read + profile:read
         </span>
-        <button disabled={!auth.scopes.all(["notes:write"])} on:click={tryWrite}>write action</button>
+        <button disabled={!hasAllScopes(["notes:write"])} on:click={tryWrite}>write action</button>
       </div>
       <pre>{JSON.stringify(authState, null, 2)}</pre>
       <p>write smoke result: <strong>{writeResult}</strong></p>

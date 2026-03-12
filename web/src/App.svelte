@@ -37,6 +37,12 @@
   };
   let writeResult = "not attempted";
 
+  $: viewerLabel = viewer?.subject ? `${viewer.subject.slice(0, 8)}...` : "anonymous";
+
+  function healthTone() {
+    return healthText === "ok" ? "healthy" : "degraded";
+  }
+
   function hasAnyScope(required: string[]) {
     return required.some((scope) => authState.scopes.includes(scope));
   }
@@ -84,57 +90,115 @@
   }
 </script>
 
-<main>
-  <section class="card">
-    <h1>app.smoke web</h1>
-    <p>Environment: <strong>{envLabel}</strong></p>
-    <p>
-      Business API health:
-      <strong>{healthText}</strong>
-    </p>
-    <p>This sample assumes auth and scope enforcement happen upstream.</p>
-  </section>
+<main class="shell">
+  <section class="hero card">
+    <div>
+      <p class="eyebrow">app.smoke</p>
+      <h1>Gateway-authenticated business app sample</h1>
+      <p class="lede">This page stays business-focused: identity comes from upstream auth, and the UI only reflects the trusted viewer context.</p>
+    </div>
 
-  <section class="card">
-    <h2>Gateway-provided identity</h2>
-    {#if viewer}
-      <pre>{JSON.stringify(viewer, null, 2)}</pre>
-      <div class="scope-demo">
-        <span class:ok={hasAnyScope(["notes:read"])}>notes:read</span>
-        <span class:ok={hasAllScopes(["notes:read", "profile:read"])}>
-          notes:read + profile:read
-        </span>
-        <button disabled={!hasAllScopes(["notes:write"])} on:click={tryWrite}>write action</button>
+    <div class="hero-metrics">
+      <div>
+        <span class="metric-label">Environment</span>
+        <strong>{envLabel}</strong>
       </div>
-      <pre>{JSON.stringify(authState, null, 2)}</pre>
-      <p>write smoke result: <strong>{writeResult}</strong></p>
-    {:else}
-      <p>{errorText || "Loading viewer context..."}</p>
-    {/if}
+      <div>
+        <span class="metric-label">Health</span>
+        <strong class={healthTone()}>{healthText}</strong>
+      </div>
+      <div>
+        <span class="metric-label">Viewer</span>
+        <strong>{viewerLabel}</strong>
+      </div>
+    </div>
   </section>
 
-  <section class="card">
-    <h2>Sample business payload</h2>
-    {#if notes}
-      <pre>{JSON.stringify(notes, null, 2)}</pre>
-    {:else}
-      <p>{errorText || "Loading notes..."}</p>
-    {/if}
+  <section class="dashboard">
+    <section class="card identity-card">
+      <div class="section-head">
+        <div>
+          <p class="eyebrow">Identity</p>
+          <h2>Gateway-provided viewer</h2>
+        </div>
+        <span class:ready={authState.authenticated} class="pill">{authState.authenticated ? "authenticated" : "anonymous"}</span>
+      </div>
+
+      {#if viewer}
+        <dl class="identity-grid">
+          <div>
+            <dt>Subject</dt>
+            <dd><code>{viewer.subject}</code></dd>
+          </div>
+          <div>
+            <dt>Auth type</dt>
+            <dd>{viewer.auth_type}</dd>
+          </div>
+          <div>
+            <dt>Scopes</dt>
+            <dd>{viewer.scopes.join(", ") || "none"}</dd>
+          </div>
+        </dl>
+
+        <div class="scope-demo">
+          <span class:ok={hasAnyScope(["notes:read"])}>notes:read</span>
+          <span class:ok={hasAllScopes(["notes:read", "profile:read"])}>notes:read + profile:read</span>
+          <button disabled={!hasAllScopes(["notes:write"])} on:click={tryWrite}>write action</button>
+        </div>
+
+        <p class="caption">Write smoke result: <strong>{writeResult}</strong></p>
+        <pre>{JSON.stringify(authState, null, 2)}</pre>
+      {:else}
+        <p>{errorText || "Loading viewer context..."}</p>
+      {/if}
+    </section>
+
+    <section class="card notes-card">
+      <div class="section-head">
+        <div>
+          <p class="eyebrow">Payload</p>
+          <h2>Sample notes</h2>
+        </div>
+      </div>
+
+      {#if notes}
+        <div class="note-list">
+          {#each notes.notes as note}
+            <article class="note-item">
+              <p class="note-id">{note.id}</p>
+              <h3>{note.title}</h3>
+              <p>{note.summary}</p>
+            </article>
+          {/each}
+        </div>
+        <pre>{JSON.stringify(notes, null, 2)}</pre>
+      {:else}
+        <p>{errorText || "Loading notes..."}</p>
+      {/if}
+    </section>
   </section>
 </main>
 
 <style>
   :global(body) {
     margin: 0;
-    font-family: "Iowan Old Style", "Palatino Linotype", serif;
-    background: linear-gradient(180deg, #f6f3ea 0%, #e8eef3 100%);
+    font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+    background:
+      radial-gradient(circle at top left, rgba(213, 225, 235, 0.7), transparent 32%),
+      linear-gradient(180deg, #f4efe6 0%, #eef3f7 100%);
     color: #1d2733;
   }
 
-  main {
+  .shell {
     min-height: 100vh;
     padding: 2rem;
     display: grid;
+    gap: 1rem;
+  }
+
+  .dashboard {
+    display: grid;
+    grid-template-columns: minmax(320px, 0.9fr) minmax(0, 1.1fr);
     gap: 1rem;
   }
 
@@ -146,6 +210,80 @@
     box-shadow: 0 12px 30px rgba(29, 39, 51, 0.08);
   }
 
+  .hero {
+    display: grid;
+    grid-template-columns: minmax(0, 1.3fr) minmax(240px, 0.7fr);
+    gap: 1rem;
+    align-items: start;
+  }
+
+  .eyebrow {
+    margin: 0 0 0.45rem;
+    color: #7b5d2b;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-size: 0.75rem;
+    font-weight: 700;
+  }
+
+  .lede {
+    margin: 0;
+    color: #5d6774;
+    max-width: 54rem;
+  }
+
+  .hero-metrics {
+    display: grid;
+    gap: 0.75rem;
+  }
+
+  .hero-metrics > div {
+    padding: 0.95rem 1rem;
+    border-radius: 0.9rem;
+    background: rgba(243, 238, 229, 0.92);
+    border: 1px solid rgba(29, 39, 51, 0.08);
+  }
+
+  .metric-label,
+  dt,
+  .note-id,
+  .caption {
+    display: block;
+    font-size: 0.8rem;
+    color: #6c7784;
+  }
+
+  .healthy {
+    color: #215f35;
+  }
+
+  .degraded {
+    color: #8a3f2f;
+  }
+
+  .section-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    align-items: start;
+    margin-bottom: 1rem;
+  }
+
+  .pill {
+    border-radius: 999px;
+    padding: 0.35rem 0.7rem;
+    background: #f1ece4;
+    color: #6c7784;
+    border: 1px solid rgba(29, 39, 51, 0.1);
+    font-size: 0.82rem;
+  }
+
+  .pill.ready {
+    background: #dff2e4;
+    color: #215f35;
+    border-color: rgba(33, 95, 53, 0.2);
+  }
+
   h1, h2 {
     margin: 0 0 0.75rem;
   }
@@ -155,6 +293,20 @@
     white-space: pre-wrap;
     word-break: break-word;
     font-size: 0.92rem;
+  }
+
+  code {
+    font-family: "IBM Plex Mono", monospace;
+  }
+
+  .identity-grid {
+    display: grid;
+    gap: 0.95rem;
+    margin: 0 0 1rem;
+  }
+
+  .identity-grid dd {
+    margin: 0.2rem 0 0;
   }
 
   .scope-demo {
@@ -178,5 +330,35 @@
     background: #dff2e4;
     color: #215f35;
     border-color: rgba(33, 95, 53, 0.2);
+  }
+
+  .note-list {
+    display: grid;
+    gap: 0.8rem;
+    margin-bottom: 1rem;
+  }
+
+  .note-item {
+    padding: 1rem;
+    border-radius: 0.9rem;
+    background: #f7f3ea;
+    border: 1px solid rgba(29, 39, 51, 0.08);
+  }
+
+  .note-item h3,
+  .note-item p {
+    margin: 0;
+  }
+
+  .note-item h3 {
+    margin-top: 0.25rem;
+    margin-bottom: 0.35rem;
+  }
+
+  @media (max-width: 780px) {
+    .hero,
+    .dashboard {
+      grid-template-columns: 1fr;
+    }
   }
 </style>

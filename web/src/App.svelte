@@ -36,6 +36,8 @@
     scopes: [],
   };
   let writeResult = "not attempted";
+  let dataStatus = "checking";
+  let lastRefresh = "never";
 
   $: viewerLabel = viewer?.subject ? `${viewer.subject.slice(0, 8)}...` : "anonymous";
 
@@ -61,7 +63,9 @@
     };
   }
 
-  onMount(async () => {
+  async function refreshDashboard(showResult = false) {
+    dataStatus = "checking";
+    errorText = "";
     try {
       const [health, viewerRes, notesRes] = await Promise.all([
         http.get("/api/v1/health"),
@@ -73,11 +77,22 @@
       viewer = viewerRes.data;
       notes = notesRes.data;
       syncAuthState(viewer);
+      dataStatus = "ready";
+      lastRefresh = new Date().toLocaleTimeString();
+      if (showResult) {
+        writeResult = "dashboard refreshed";
+      }
     } catch (error) {
       healthText = "unreachable";
       errorText = error instanceof Error ? error.message : "request failed";
       syncAuthState(null);
+      dataStatus = "error";
+      lastRefresh = new Date().toLocaleTimeString();
     }
+  }
+
+  onMount(async () => {
+    await refreshDashboard();
   });
 
   async function tryWrite() {
@@ -110,6 +125,10 @@
       <div>
         <span class="metric-label">Viewer</span>
         <strong>{viewerLabel}</strong>
+      </div>
+      <div>
+        <span class="metric-label">Refresh</span>
+        <strong>{lastRefresh}</strong>
       </div>
     </div>
   </section>
@@ -144,12 +163,17 @@
           <span class:ok={hasAnyScope(["notes:read"])}>notes:read</span>
           <span class:ok={hasAllScopes(["notes:read", "profile:read"])}>notes:read + profile:read</span>
           <button disabled={!hasAllScopes(["notes:write"])} on:click={tryWrite}>write action</button>
+          <button on:click={() => refreshDashboard(true)}>refresh dashboard</button>
         </div>
 
+        <p class="caption">Status: <strong>{dataStatus}</strong> · Last refresh: <strong>{lastRefresh}</strong></p>
         <p class="caption">Write smoke result: <strong>{writeResult}</strong></p>
         <pre>{JSON.stringify(authState, null, 2)}</pre>
       {:else}
         <p>{errorText || "Loading viewer context..."}</p>
+        <div class="scope-demo">
+          <button on:click={() => refreshDashboard(true)}>refresh dashboard</button>
+        </div>
       {/if}
     </section>
 

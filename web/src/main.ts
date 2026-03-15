@@ -1,3 +1,4 @@
+import "@liberte-top/components/theme.css";
 import App from "./App.svelte";
 
 const app = new App({

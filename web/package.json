@@ -10,6 +10,7 @@
     "preview": "vite preview --host --port 5173"
   },
   "dependencies": {
+    "@liberte-top/components": "file:../../packages/npm/components",
     "@liberte-top/auth": "file:../../packages/npm/auth",
     "axios": "1.7.9",
     "svelte": "5.38.0"

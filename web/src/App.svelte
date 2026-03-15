@@ -1,4 +1,8 @@
 <script lang="ts">
+  import { Button, Card, CardHeader, SectionLabel } from "@liberte-top/components";
+  import InfoChip from "./lib/components/InfoChip.svelte";
+  import MetricTile from "./lib/components/MetricTile.svelte";
+  import StatusPill from "./lib/components/StatusPill.svelte";
   import { onMount } from "svelte";
   import axios from "axios";
 
@@ -42,7 +46,11 @@
   $: viewerLabel = viewer?.subject ? `${viewer.subject.slice(0, 8)}...` : "anonymous";
 
   function healthTone() {
-    return healthText === "ok" ? "healthy" : "degraded";
+    return healthText === "ok" ? "success" : "danger";
+  }
+
+  function authTone() {
+    return authState.authenticated ? "ready" : "idle";
   }
 
   function hasAnyScope(required: string[]) {
@@ -106,41 +114,31 @@
 </script>
 
 <main class="shell">
-  <section class="hero card">
+  <Card class="hero-card">
     <div>
-      <p class="eyebrow">app.smoke</p>
+      <SectionLabel>app.smoke</SectionLabel>
       <h1>Gateway-authenticated business app sample</h1>
       <p class="lede">This page stays business-focused: identity comes from upstream auth, and the UI only reflects the trusted viewer context.</p>
     </div>
 
     <div class="hero-metrics">
-      <div>
-        <span class="metric-label">Environment</span>
-        <strong>{envLabel}</strong>
-      </div>
-      <div>
-        <span class="metric-label">Health</span>
+      <MetricTile label="Environment" value={envLabel} />
+      <MetricTile label="Health" tone={healthTone()}>
         <strong class={healthTone()}>{healthText}</strong>
-      </div>
-      <div>
-        <span class="metric-label">Viewer</span>
-        <strong>{viewerLabel}</strong>
-      </div>
-      <div>
-        <span class="metric-label">Refresh</span>
-        <strong>{lastRefresh}</strong>
-      </div>
+      </MetricTile>
+      <MetricTile label="Viewer" value={viewerLabel} />
+      <MetricTile label="Refresh" value={lastRefresh} />
     </div>
-  </section>
+  </Card>
 
   <section class="dashboard">
-    <section class="card identity-card">
+    <Card class="identity-card">
       <div class="section-head">
-        <div>
-          <p class="eyebrow">Identity</p>
+        <CardHeader>
+          <SectionLabel>Identity</SectionLabel>
           <h2>Gateway-provided viewer</h2>
-        </div>
-        <span class:ready={authState.authenticated} class="pill">{authState.authenticated ? "authenticated" : "anonymous"}</span>
+        </CardHeader>
+        <StatusPill tone={authTone()}>{authState.authenticated ? "authenticated" : "anonymous"}</StatusPill>
       </div>
 
       {#if viewer}
@@ -160,10 +158,10 @@
         </dl>
 
         <div class="scope-demo">
-          <span class:ok={hasAnyScope(["notes:read"])}>notes:read</span>
-          <span class:ok={hasAllScopes(["notes:read", "profile:read"])}>notes:read + profile:read</span>
-          <button disabled={!hasAllScopes(["notes:write"])} on:click={tryWrite}>write action</button>
-          <button on:click={() => refreshDashboard(true)}>refresh dashboard</button>
+          <InfoChip tone={hasAnyScope(["notes:read"]) ? "success" : "default"}>notes:read</InfoChip>
+          <InfoChip tone={hasAllScopes(["notes:read", "profile:read"]) ? "success" : "default"}>notes:read + profile:read</InfoChip>
+          <Button size="lg" variant="secondary" disabled={!hasAllScopes(["notes:write"])} onclick={tryWrite}>write action</Button>
+          <Button size="lg" onclick={() => refreshDashboard(true)}>refresh dashboard</Button>
         </div>
 
         <p class="caption">Status: <strong>{dataStatus}</strong> · Last refresh: <strong>{lastRefresh}</strong></p>
@@ -172,17 +170,17 @@
       {:else}
         <p>{errorText || "Loading viewer context..."}</p>
         <div class="scope-demo">
-          <button on:click={() => refreshDashboard(true)}>refresh dashboard</button>
+          <Button size="lg" onclick={() => refreshDashboard(true)}>refresh dashboard</Button>
         </div>
       {/if}
-    </section>
+    </Card>
 
-    <section class="card notes-card">
+    <Card class="notes-card">
       <div class="section-head">
-        <div>
-          <p class="eyebrow">Payload</p>
+        <CardHeader>
+          <SectionLabel>Payload</SectionLabel>
           <h2>Sample notes</h2>
-        </div>
+        </CardHeader>
       </div>
 
       {#if notes}
@@ -199,18 +197,43 @@
       {:else}
         <p>{errorText || "Loading notes..."}</p>
       {/if}
-    </section>
+    </Card>
   </section>
 </main>
 
 <style>
+  :global(:root) {
+    --lt-page-bg: #eef3f7;
+    --lt-color-primary: #6f5a2f;
+    --lt-color-primary-hover: #594822;
+    --lt-color-on-primary: #fffdf8;
+    --lt-color-surface: rgba(255, 255, 255, 0.86);
+    --lt-color-surface-hover: #f4efe6;
+    --lt-color-border: rgba(29, 39, 51, 0.12);
+    --lt-color-border-muted: rgba(29, 39, 51, 0.08);
+    --lt-color-text: #1d2733;
+    --lt-color-text-muted: #5d6774;
+    --lt-color-text-subtle: #6c7784;
+    --lt-color-fill-muted: #f4efe6;
+    --lt-color-success: #215f35;
+    --lt-color-success-surface: #dff2e4;
+    --lt-color-success-border: rgba(33, 95, 53, 0.2);
+    --lt-color-danger: #8a3f2f;
+    --lt-color-danger-surface: #f6e4de;
+    --lt-color-danger-border: rgba(138, 63, 47, 0.2);
+    --lt-card-radius: 1rem;
+    --lt-card-padding: 1.25rem;
+    --lt-card-shadow: 0 12px 30px rgba(29, 39, 51, 0.08);
+    --lt-button-radius: 999px;
+    --lt-button-padding-inline: 0.9rem;
+    --lt-button-height-lg: 2.4rem;
+    --lt-button-font-size-lg: 0.92rem;
+  }
+
   :global(body) {
-    margin: 0;
-    font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
     background:
       radial-gradient(circle at top left, rgba(213, 225, 235, 0.7), transparent 32%),
       linear-gradient(180deg, #f4efe6 0%, #eef3f7 100%);
-    color: #1d2733;
   }
 
   .shell {
@@ -226,28 +249,11 @@
     gap: 1rem;
   }
 
-  .card {
-    background: rgba(255, 255, 255, 0.86);
-    border: 1px solid rgba(29, 39, 51, 0.12);
-    border-radius: 1rem;
-    padding: 1.25rem;
-    box-shadow: 0 12px 30px rgba(29, 39, 51, 0.08);
-  }
-
-  .hero {
+  :global(.hero-card) {
     display: grid;
     grid-template-columns: minmax(0, 1.3fr) minmax(240px, 0.7fr);
     gap: 1rem;
     align-items: start;
-  }
-
-  .eyebrow {
-    margin: 0 0 0.45rem;
-    color: #7b5d2b;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    font-size: 0.75rem;
-    font-weight: 700;
   }
 
   .lede {
@@ -261,14 +267,6 @@
     gap: 0.75rem;
   }
 
-  .hero-metrics > div {
-    padding: 0.95rem 1rem;
-    border-radius: 0.9rem;
-    background: rgba(243, 238, 229, 0.92);
-    border: 1px solid rgba(29, 39, 51, 0.08);
-  }
-
-  .metric-label,
   dt,
   .note-id,
   .caption {
@@ -277,12 +275,12 @@
     color: #6c7784;
   }
 
-  .healthy {
-    color: #215f35;
+  .success {
+    color: var(--lt-color-success);
   }
 
-  .degraded {
-    color: #8a3f2f;
+  .danger {
+    color: var(--lt-color-danger);
   }
 
   .section-head {
@@ -293,19 +291,14 @@
     margin-bottom: 1rem;
   }
 
-  .pill {
-    border-radius: 999px;
-    padding: 0.35rem 0.7rem;
-    background: #f1ece4;
-    color: #6c7784;
-    border: 1px solid rgba(29, 39, 51, 0.1);
-    font-size: 0.82rem;
+  .section-head :global(.lt-card-header) {
+    margin-bottom: 0;
   }
 
-  .pill.ready {
-    background: #dff2e4;
-    color: #215f35;
-    border-color: rgba(33, 95, 53, 0.2);
+  .section-head :global(.lt-section-label) {
+    color: #7b5d2b;
+    letter-spacing: 0.08em;
+    margin-bottom: 0.45rem;
   }
 
   h1, h2 {
@@ -339,21 +332,6 @@
     gap: 0.75rem;
     align-items: center;
     flex-wrap: wrap;
-  }
-
-  .scope-demo span,
-  .scope-demo button {
-    border-radius: 999px;
-    border: 1px solid rgba(29, 39, 51, 0.14);
-    padding: 0.35rem 0.7rem;
-    background: #f4efe6;
-    color: #6c7784;
-  }
-
-  .scope-demo .ok {
-    background: #dff2e4;
-    color: #215f35;
-    border-color: rgba(33, 95, 53, 0.2);
   }
 
   .note-list {

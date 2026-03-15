@@ -11,6 +11,9 @@ importers:
       '@liberte-top/auth':
         specifier: file:../../packages/npm/auth
         version: file:../../packages/npm/auth
+      '@liberte-top/components':
+        specifier: file:../../packages/npm/components
+        version: file:../../packages/npm/components(svelte@5.38.0)
       axios:
         specifier: 1.7.9
         version: 1.7.9
@@ -187,6 +190,11 @@ packages:
 
   '@liberte-top/auth@file:../../packages/npm/auth':
     resolution: {directory: ../../packages/npm/auth, type: directory}
+
+  '@liberte-top/components@file:../../packages/npm/components':
+    resolution: {directory: ../../packages/npm/components, type: directory}
+    peerDependencies:
+      svelte: ^5.38.0
 
   '@liberte-top/shared@file:../../packages/npm/shared':
     resolution: {directory: ../../packages/npm/shared, type: directory}
@@ -661,6 +669,10 @@ snapshots:
       '@liberte-top/shared': file:../../packages/npm/shared
     transitivePeerDependencies:
       - debug
+
+  '@liberte-top/components@file:../../packages/npm/components(svelte@5.38.0)':
+    dependencies:
+      svelte: 5.38.0
 
   '@liberte-top/shared@file:../../packages/npm/shared':
     dependencies:

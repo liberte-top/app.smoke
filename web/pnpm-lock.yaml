@@ -8,12 +8,9 @@ importers:
 
   .:
     dependencies:
-      '@liberte-top/auth':
-        specifier: file:../../packages/npm/auth
-        version: file:../../packages/npm/auth
       '@liberte-top/components':
-        specifier: file:../../packages/npm/components
-        version: file:../../packages/npm/components(svelte@5.38.0)
+        specifier: 0.1.0
+        version: 0.1.0(svelte@5.38.0)
       svelte:
         specifier: 5.38.0
         version: 5.38.0
@@ -185,16 +182,10 @@ packages:
   '@jridgewell/trace-mapping@0.3.31':
     resolution: {integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==}
 
-  '@liberte-top/auth@file:../../packages/npm/auth':
-    resolution: {directory: ../../packages/npm/auth, type: directory}
-
-  '@liberte-top/components@file:../../packages/npm/components':
-    resolution: {directory: ../../packages/npm/components, type: directory}
+  '@liberte-top/components@0.1.0':
+    resolution: {integrity: sha512-UaqIYyfWdFLlXm2XGnTFvOht5fYLROOzmHKrfMqAPfW1NLbq5nbof1vECXxwfaHmHSUOaxtxBnDkdIKjmqScDQ==, tarball: https://npm.pkg.github.com/download/@liberte-top/components/0.1.0/f51573713751d9d9eb450d907c11dee2dec27024}
     peerDependencies:
       svelte: ^5.38.0
-
-  '@liberte-top/shared@file:../../packages/npm/shared':
-    resolution: {directory: ../../packages/npm/shared, type: directory}
 
   '@rollup/rollup-android-arm-eabi@4.59.0':
     resolution: {integrity: sha512-upnNBkA6ZH2VKGcBj9Fyl9IGNPULcjXRlg0LLeaioQWueH30p6IXtJEbKAgvyv+mJaMxSm1l6xwDXYjpEMiLMg==}
@@ -568,15 +559,9 @@ snapshots:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
 
-  '@liberte-top/auth@file:../../packages/npm/auth':
-    dependencies:
-      '@liberte-top/shared': file:../../packages/npm/shared
-
-  '@liberte-top/components@file:../../packages/npm/components(svelte@5.38.0)':
+  '@liberte-top/components@0.1.0(svelte@5.38.0)':
     dependencies:
       svelte: 5.38.0
-
-  '@liberte-top/shared@file:../../packages/npm/shared': {}
 
   '@rollup/rollup-android-arm-eabi@4.59.0':
     optional: true

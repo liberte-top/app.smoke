@@ -46,3 +46,9 @@ app.smoke/
 - Keep auth enforcement out of this repo; treat gateway headers as the identity contract.
 - Keep the API small and explicit so it remains a sample, not a hidden platform.
 - Keep the web app same-origin and free of environment-specific API host logic.
+
+## Shared Package Consumption
+- `web/` now consumes `@liberte-top/components` from GitHub Packages rather than the legacy local `../../packages/npm/components` path.
+- The old `@liberte-top/auth` dependency is retired here; keep auth logic app-local or consume `@liberte-top/shared/auth` directly if it ever becomes necessary.
+- Keep GitHub Packages registry mapping and auth in machine-level `~/.npmrc`, not in repository files.
+- CI should follow the same model by writing runner-level `~/.npmrc` (or equivalent runner-global npm config) before `pnpm install`.

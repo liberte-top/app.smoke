@@ -1,11 +1,12 @@
 <script lang="ts">
   import { Button, Card, CardHeader, SectionLabel } from "@liberte-top/components";
   import InfoChip from "./lib/components/InfoChip.svelte";
+  import { config } from "./lib/config";
   import MetricTile from "./lib/components/MetricTile.svelte";
   import StatusPill from "./lib/components/StatusPill.svelte";
   import { onMount } from "svelte";
 
-  const envLabel = import.meta.env.VITE_ENV_LABEL ?? "local";
+  const envLabel = config.envLabel;
 
   type Viewer = {
     subject: string | null;

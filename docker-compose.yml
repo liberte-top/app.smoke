@@ -16,6 +16,7 @@ services:
       context: ..
       dockerfile: app.smoke/web/Dockerfile
       args:
+        GITHUB_PACKAGES_TOKEN: ${GITHUB_PACKAGES_TOKEN:-}
         VITE_ENV_LABEL: ${WEB_VITE_ENV_LABEL:-compose}
     ports:
       - "${WEB_PUBLIC_PORT:-6180}:80"

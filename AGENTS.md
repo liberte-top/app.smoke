@@ -52,3 +52,4 @@ app.smoke/
 - The old `@liberte-top/auth` dependency is retired here; keep auth logic app-local or consume `@liberte-top/shared/auth` directly if it ever becomes necessary.
 - Keep GitHub Packages registry mapping and auth in machine-level `~/.npmrc`, not in repository files.
 - CI should follow the same model by writing runner-level `~/.npmrc` (or equivalent runner-global npm config) before `pnpm install`.
+- Docker builds also need GitHub Packages read access; pass `GITHUB_PACKAGES_TOKEN` into compose/CI build args rather than vendoring package sources into the image build context.

@@ -56,7 +56,7 @@ jobs:
         run: pnpm build
 
       - name: Build web image
-        run: docker build -f ./web/Dockerfile ..
+        run: docker build --build-arg GITHUB_PACKAGES_TOKEN="${{ secrets.GITHUB_TOKEN }}" -f ./web/Dockerfile ..
 
       - name: Setup Buildx
         if: github.event_name != 'pull_request'
@@ -77,6 +77,8 @@ jobs:
           context: ..
           file: ../app.smoke/web/Dockerfile
           push: true
+          build-args: |
+            GITHUB_PACKAGES_TOKEN=${{ secrets.GITHUB_TOKEN }}
           tags: |
             ghcr.io/liberte-top/app-smoke-web:main
             ghcr.io/liberte-top/app-smoke-web:sha-${{ github.sha }}

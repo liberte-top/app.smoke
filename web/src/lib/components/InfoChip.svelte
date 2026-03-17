@@ -1,6 +1,6 @@
 <script lang="ts">
   type Props = {
-    tone?: "default" | "success";
+    tone?: "default" | "success" | "danger";
     children?: import("svelte").Snippet;
   };
 
@@ -27,5 +27,11 @@
     background: var(--lt-color-success-surface);
     color: var(--lt-color-success);
     border-color: var(--lt-color-success-border);
+  }
+
+  .info-chip--danger {
+    background: var(--lt-color-danger-surface);
+    color: var(--lt-color-danger);
+    border-color: var(--lt-color-danger-border);
   }
 </style>

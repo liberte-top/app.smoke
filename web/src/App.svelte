@@ -4,10 +4,8 @@
   import MetricTile from "./lib/components/MetricTile.svelte";
   import StatusPill from "./lib/components/StatusPill.svelte";
   import { onMount } from "svelte";
-  import axios from "axios";
 
   const envLabel = import.meta.env.VITE_ENV_LABEL ?? "local";
-  const http = axios.create();
 
   type Viewer = {
     subject: string | null;
@@ -75,15 +73,33 @@
     dataStatus = "checking";
     errorText = "";
     try {
-      const [health, viewerRes, notesRes] = await Promise.all([
-        http.get("/api/v1/health"),
-        http.get("/api/v1/viewer"),
-        http.get("/api/v1/notes"),
+      const [healthRes, viewerRes, notesRes] = await Promise.all([
+        fetch("/api/v1/health"),
+        fetch("/api/v1/viewer"),
+        fetch("/api/v1/notes"),
       ]);
 
-      healthText = health.data.status;
-      viewer = viewerRes.data;
-      notes = notesRes.data;
+      if (!healthRes.ok) {
+        throw new Error(`health failed: ${healthRes.status}`);
+      }
+
+      if (!viewerRes.ok) {
+        throw new Error(`viewer failed: ${viewerRes.status}`);
+      }
+
+      if (!notesRes.ok) {
+        throw new Error(`notes failed: ${notesRes.status}`);
+      }
+
+      const [health, nextViewer, nextNotes] = await Promise.all([
+        healthRes.json(),
+        viewerRes.json(),
+        notesRes.json(),
+      ]);
+
+      healthText = health.status;
+      viewer = nextViewer;
+      notes = nextNotes;
       syncAuthState(viewer);
       dataStatus = "ready";
       lastRefresh = new Date().toLocaleTimeString();
@@ -105,10 +121,22 @@
 
   async function tryWrite() {
     try {
-      await http.post("/api/v1/notes", { title: "blocked-by-scope" });
-      writeResult = "unexpected success";
-    } catch (error: any) {
-      writeResult = `status ${error?.response?.status ?? "unknown"}`;
+      const response = await fetch("/api/v1/notes", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({ title: "blocked-by-scope" }),
+      });
+
+      if (response.ok) {
+        writeResult = "unexpected success";
+        return;
+      }
+
+      writeResult = `status ${response.status}`;
+    } catch (error) {
+      writeResult = error instanceof Error ? error.message : "unknown";
     }
   }
 </script>

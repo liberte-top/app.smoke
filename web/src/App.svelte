@@ -7,6 +7,8 @@
   import { onMount } from "svelte";
 
   const envLabel = config.envLabel;
+  const notesReadScopes = ["notes:read"];
+  const notesWriteScopes = ["notes:write"];
 
   type Viewer = {
     subject: string | null;
@@ -19,6 +21,14 @@
     notes: Array<{ id: string; title: string; summary: string }>;
   };
 
+  type WriteResponse = {
+    accepted: boolean;
+    persisted: boolean;
+    title: string;
+    viewer: Viewer;
+    message: string;
+  };
+
   type AuthState = {
     ready: boolean;
     authenticated: boolean;
@@ -27,10 +37,34 @@
     scopes: string[];
   };
 
+  type ProbeState = "idle" | "loading" | "success" | "denied" | "error";
+  type ChipTone = "default" | "success" | "danger";
+  type StatusTone = "idle" | "ready" | "danger" | "loading";
+
+  type RequestProbe = {
+    label: string;
+    method: string;
+    path: string;
+    state: ProbeState;
+    status: number | null;
+    detail: string;
+    payload: string;
+    expectedScopes: string[];
+  };
+
+  const idleProbe = (label: string, method: string, path: string, expectedScopes: string[] = []): RequestProbe => ({
+    label,
+    method,
+    path,
+    state: "idle",
+    status: null,
+    detail: "Not attempted yet.",
+    payload: "",
+    expectedScopes,
+  });
+
   let healthText = "loading";
-  let viewer: Viewer | null = null;
-  let notes: NotesResponse | null = null;
-  let errorText = "";
+  let healthDetail = "Waiting for API health.";
   let authState: AuthState = {
     ready: false,
     authenticated: false,
@@ -38,26 +72,21 @@
     authType: null,
     scopes: [],
   };
-  let writeResult = "not attempted";
-  let dataStatus = "checking";
+  let viewer: Viewer | null = null;
+  let notes: NotesResponse | null = null;
+  let writeResponse: WriteResponse | null = null;
   let lastRefresh = "never";
+  let viewerProbe = idleProbe("Viewer", "GET", "/api/v1/viewer");
+  let notesProbe = idleProbe("Notes read", "GET", "/api/v1/notes", notesReadScopes);
+  let writeProbe = idleProbe("Notes write", "POST", "/api/v1/notes", notesWriteScopes);
 
-  $: viewerLabel = viewer?.subject ? `${viewer.subject.slice(0, 8)}...` : "anonymous";
+  $: viewerLabel = authState.subject ? `${authState.subject.slice(0, 12)}...` : "anonymous";
+  $: authModeLabel = authState.authType ?? "none";
+  $: authModeTone = chipToneForAuthMode(authState.authType);
+  $: notesVisibility = notesProbe.state === "success" ? "visible" : notesProbe.state === "denied" ? "blocked" : "unknown";
 
-  function healthTone() {
-    return healthText === "ok" ? "success" : "danger";
-  }
-
-  function authTone() {
-    return authState.authenticated ? "ready" : "idle";
-  }
-
-  function hasAnyScope(required: string[]) {
-    return required.some((scope) => authState.scopes.includes(scope));
-  }
-
-  function hasAllScopes(required: string[]) {
-    return required.every((scope) => authState.scopes.includes(scope));
+  function metricTone(text: string) {
+    return text === "ok" ? "success" : text === "loading" ? "default" : "danger";
   }
 
   function syncAuthState(nextViewer: Viewer | null) {
@@ -70,93 +99,200 @@
     };
   }
 
-  async function refreshDashboard(showResult = false) {
-    dataStatus = "checking";
-    errorText = "";
+  function hasAllScopes(required: string[]) {
+    return required.every((scope) => authState.scopes.includes(scope));
+  }
+
+  function chipToneForAuthMode(authType: string | null): ChipTone {
+    if (authType === "session") {
+      return "success";
+    }
+
+    if (authType) {
+      return "default";
+    }
+
+    return "danger";
+  }
+
+  function probeTone(state: ProbeState): StatusTone {
+    if (state === "success") {
+      return "ready";
+    }
+
+    if (state === "denied" || state === "error") {
+      return "danger";
+    }
+
+    if (state === "loading") {
+      return "loading";
+    }
+
+    return "idle";
+  }
+
+  function probeBadgeClass(state: ProbeState) {
+    if (state === "success") return "probe-badge probe-badge--success";
+    if (state === "denied") return "probe-badge probe-badge--denied";
+    if (state === "error") return "probe-badge probe-badge--error";
+    if (state === "loading") return "probe-badge probe-badge--loading";
+    return "probe-badge";
+  }
+
+  function probeLabel(state: ProbeState) {
+    if (state === "success") return "allowed";
+    if (state === "denied") return "denied";
+    if (state === "error") return "error";
+    if (state === "loading") return "loading";
+    return "idle";
+  }
+
+  function statusLabel(status: number | null) {
+    return status === null ? "-" : `${status}`;
+  }
+
+  async function readPayload(response: Response) {
+    const text = await response.text();
+    if (!text) {
+      return "";
+    }
+
     try {
-      const [healthRes, viewerRes, notesRes] = await Promise.all([
-        fetch("/api/v1/health"),
-        fetch("/api/v1/viewer"),
-        fetch("/api/v1/notes"),
-      ]);
+      return JSON.stringify(JSON.parse(text), null, 2);
+    } catch {
+      return text;
+    }
+  }
 
-      if (!healthRes.ok) {
-        throw new Error(`health failed: ${healthRes.status}`);
+  async function runProbe(
+    base: RequestProbe,
+    input: RequestInfo | URL,
+    init?: RequestInit,
+  ) {
+    try {
+      const response = await fetch(input, init);
+      const payload = await readPayload(response);
+
+      if (response.ok) {
+        return {
+          ...base,
+          state: "success" as const,
+          status: response.status,
+          detail: "Gateway allowed request through to app.smoke.",
+          payload,
+        };
       }
 
-      if (!viewerRes.ok) {
-        throw new Error(`viewer failed: ${viewerRes.status}`);
+      if (response.status === 401 || response.status === 403) {
+        return {
+          ...base,
+          state: "denied" as const,
+          status: response.status,
+          detail: "Gateway denied this request before the business app could complete it.",
+          payload,
+        };
       }
 
-      if (!notesRes.ok) {
-        throw new Error(`notes failed: ${notesRes.status}`);
+      return {
+        ...base,
+        state: "error" as const,
+        status: response.status,
+        detail: "Request reached the stack but did not succeed.",
+        payload,
+      };
+    } catch (error) {
+      return {
+        ...base,
+        state: "error" as const,
+        status: null,
+        detail: error instanceof Error ? error.message : "Unknown request failure.",
+        payload: "",
+      };
+    }
+  }
+
+  async function refreshDashboard() {
+    viewerProbe = { ...viewerProbe, state: "loading", detail: "Request in flight.", payload: "", status: null };
+    notesProbe = { ...notesProbe, state: "loading", detail: "Request in flight.", payload: "", status: null };
+    healthText = "loading";
+    healthDetail = "Checking API health.";
+
+    const [healthResult, nextViewerProbe, nextNotesProbe] = await Promise.all([
+      fetch("/api/v1/health"),
+      runProbe(viewerProbe, "/api/v1/viewer"),
+      runProbe(notesProbe, "/api/v1/notes"),
+    ]);
+
+    viewerProbe = nextViewerProbe;
+    notesProbe = nextNotesProbe;
+    notes = null;
+
+    try {
+      if (!healthResult.ok) {
+        throw new Error(`health failed: ${healthResult.status}`);
       }
 
-      const [health, nextViewer, nextNotes] = await Promise.all([
-        healthRes.json(),
-        viewerRes.json(),
-        notesRes.json(),
-      ]);
-
+      const health = await healthResult.json();
       healthText = health.status;
-      viewer = nextViewer;
-      notes = nextNotes;
-      syncAuthState(viewer);
-      dataStatus = "ready";
-      lastRefresh = new Date().toLocaleTimeString();
-      if (showResult) {
-        writeResult = "dashboard refreshed";
-      }
+      healthDetail = "API responds on the business side.";
     } catch (error) {
       healthText = "unreachable";
-      errorText = error instanceof Error ? error.message : "request failed";
-      syncAuthState(null);
-      dataStatus = "error";
-      lastRefresh = new Date().toLocaleTimeString();
+      healthDetail = error instanceof Error ? error.message : "Health request failed.";
+    }
+
+    if (viewerProbe.state === "success" && viewerProbe.payload) {
+      viewer = JSON.parse(viewerProbe.payload) as Viewer;
+    } else {
+      viewer = null;
+    }
+
+    if (notesProbe.state === "success" && notesProbe.payload) {
+      notes = JSON.parse(notesProbe.payload) as NotesResponse;
+    }
+
+    syncAuthState(viewer ?? notes?.viewer ?? null);
+    lastRefresh = new Date().toLocaleTimeString();
+  }
+
+  async function tryWrite() {
+    writeResponse = null;
+    writeProbe = { ...writeProbe, state: "loading", detail: "Request in flight.", payload: "", status: null };
+
+    const nextWriteProbe = await runProbe(writeProbe, "/api/v1/notes", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({ title: `validation-${authState.authType ?? "anonymous"}` }),
+    });
+
+    writeProbe = nextWriteProbe;
+
+    if (writeProbe.state === "success" && writeProbe.payload) {
+      writeResponse = JSON.parse(writeProbe.payload) as WriteResponse;
     }
   }
 
   onMount(async () => {
     await refreshDashboard();
   });
-
-  async function tryWrite() {
-    try {
-      const response = await fetch("/api/v1/notes", {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-        },
-        body: JSON.stringify({ title: "blocked-by-scope" }),
-      });
-
-      if (response.ok) {
-        writeResult = "unexpected success";
-        return;
-      }
-
-      writeResult = `status ${response.status}`;
-    } catch (error) {
-      writeResult = error instanceof Error ? error.message : "unknown";
-    }
-  }
 </script>
 
 <main class="shell">
   <Card class="hero-card">
     <div>
       <SectionLabel>app.smoke</SectionLabel>
-      <h1>Gateway-authenticated business app sample</h1>
-      <p class="lede">This page stays business-focused: identity comes from upstream auth, and the UI only reflects the trusted viewer context.</p>
+      <h1>Protected notes validation target</h1>
+      <p class="lede">The app still trusts upstream identity headers, but now the notes demo makes auth mode, scope expectations, and gateway denials visible in one place.</p>
     </div>
 
     <div class="hero-metrics">
       <MetricTile label="Environment" value={envLabel} />
-      <MetricTile label="Health" tone={healthTone()}>
-        <strong class={healthTone()}>{healthText}</strong>
+      <MetricTile label="Health" tone={metricTone(healthText)}>
+        <strong class={metricTone(healthText)}>{healthText}</strong>
       </MetricTile>
+      <MetricTile label="Auth mode" value={authModeLabel} />
       <MetricTile label="Viewer" value={viewerLabel} />
-      <MetricTile label="Refresh" value={lastRefresh} />
     </div>
   </Card>
 
@@ -164,70 +300,130 @@
     <Card class="identity-card">
       <div class="section-head">
         <CardHeader>
-          <SectionLabel>Identity</SectionLabel>
-          <h2>Gateway-provided viewer</h2>
+          <SectionLabel>Viewer</SectionLabel>
+          <h2>Trusted identity snapshot</h2>
         </CardHeader>
-        <StatusPill tone={authTone()}>{authState.authenticated ? "authenticated" : "anonymous"}</StatusPill>
+        <StatusPill tone={probeTone(viewerProbe.state)}>{probeLabel(viewerProbe.state)}</StatusPill>
       </div>
 
-      {#if viewer}
-        <dl class="identity-grid">
-          <div>
-            <dt>Subject</dt>
-            <dd><code>{viewer.subject}</code></dd>
-          </div>
-          <div>
-            <dt>Auth type</dt>
-            <dd>{viewer.auth_type}</dd>
-          </div>
-          <div>
-            <dt>Scopes</dt>
-            <dd>{viewer.scopes.join(", ") || "none"}</dd>
-          </div>
-        </dl>
-
-        <div class="scope-demo">
-          <InfoChip tone={hasAnyScope(["notes:read"]) ? "success" : "default"}>notes:read</InfoChip>
-          <InfoChip tone={hasAllScopes(["notes:read", "profile:read"]) ? "success" : "default"}>notes:read + profile:read</InfoChip>
-          <Button size="lg" variant="secondary" disabled={!hasAllScopes(["notes:write"])} onclick={tryWrite}>write action</Button>
-          <Button size="lg" onclick={() => refreshDashboard(true)}>refresh dashboard</Button>
+      <div class="identity-grid">
+        <div>
+          <dt>Subject</dt>
+          <dd><code>{authState.subject ?? "anonymous"}</code></dd>
         </div>
-
-        <p class="caption">Status: <strong>{dataStatus}</strong> · Last refresh: <strong>{lastRefresh}</strong></p>
-        <p class="caption">Write smoke result: <strong>{writeResult}</strong></p>
-        <pre>{JSON.stringify(authState, null, 2)}</pre>
-      {:else}
-        <p>{errorText || "Loading viewer context..."}</p>
-        <div class="scope-demo">
-          <Button size="lg" onclick={() => refreshDashboard(true)}>refresh dashboard</Button>
+        <div>
+          <dt>Auth type</dt>
+          <dd>{authState.authType ?? "none"}</dd>
         </div>
+        <div>
+          <dt>Scopes</dt>
+          <dd>{authState.scopes.join(", ") || "none"}</dd>
+        </div>
+        <div>
+          <dt>Scope check</dt>
+          <dd>{hasAllScopes(notesReadScopes) ? "Can satisfy notes read contract" : "Missing notes:read in viewer context"}</dd>
+        </div>
+      </div>
+
+      <div class="scope-row">
+        <InfoChip tone={authModeTone}>{authState.authType ? `auth:${authState.authType}` : "auth:none"}</InfoChip>
+        <InfoChip tone={hasAllScopes(notesReadScopes) ? "success" : "danger"}>notes:read</InfoChip>
+        <InfoChip tone={hasAllScopes(notesWriteScopes) ? "success" : "danger"}>notes:write</InfoChip>
+      </div>
+
+      <p class="caption">{viewerProbe.detail}</p>
+      <p class="caption">Health: <strong>{healthDetail}</strong> · Last refresh: <strong>{lastRefresh}</strong></p>
+
+      {#if viewerProbe.payload}
+        <pre>{viewerProbe.payload}</pre>
       {/if}
     </Card>
 
-    <Card class="notes-card">
+    <Card class="checks-card">
       <div class="section-head">
         <CardHeader>
-          <SectionLabel>Payload</SectionLabel>
-          <h2>Sample notes</h2>
+          <SectionLabel>Validation</SectionLabel>
+          <h2>Gateway outcome checks</h2>
         </CardHeader>
+        <div class="action-row">
+          <Button size="lg" variant="secondary" onclick={refreshDashboard}>refresh checks</Button>
+          <Button size="lg" onclick={tryWrite}>attempt write</Button>
+        </div>
       </div>
 
-      {#if notes}
-        <div class="note-list">
-          {#each notes.notes as note}
-            <article class="note-item">
-              <p class="note-id">{note.id}</p>
-              <h3>{note.title}</h3>
-              <p>{note.summary}</p>
-            </article>
-          {/each}
+      <article class="probe-card">
+        <div class="probe-head">
+          <div>
+            <p class="probe-label">{notesProbe.method} {notesProbe.path}</p>
+            <h3>Notes read contract</h3>
+          </div>
+          <span class={probeBadgeClass(notesProbe.state)}>{probeLabel(notesProbe.state)}</span>
         </div>
-        <pre>{JSON.stringify(notes, null, 2)}</pre>
-      {:else}
-        <p>{errorText || "Loading notes..."}</p>
+        <p class="probe-copy">Expected signal: `notes:read` should allow the request, while gateway denial should show up as `401` or `403` here.</p>
+        <div class="probe-meta">
+          <InfoChip tone={hasAllScopes(notesReadScopes) ? "success" : "danger"}>viewer has notes:read</InfoChip>
+          <InfoChip tone={notesProbe.state === "success" ? "success" : notesProbe.state === "denied" ? "danger" : "default"}>http {statusLabel(notesProbe.status)}</InfoChip>
+        </div>
+        <p class="caption">{notesProbe.detail}</p>
+      </article>
+
+      <article class="probe-card">
+        <div class="probe-head">
+          <div>
+            <p class="probe-label">{writeProbe.method} {writeProbe.path}</p>
+            <h3>Notes write contract</h3>
+          </div>
+          <span class={probeBadgeClass(writeProbe.state)}>{probeLabel(writeProbe.state)}</span>
+        </div>
+        <p class="probe-copy">Use this to prove session-vs-token and scope policy. If the gateway blocks write access, the business app should not return the smoke response.</p>
+        <div class="probe-meta">
+          <InfoChip tone={hasAllScopes(notesWriteScopes) ? "success" : "danger"}>viewer has notes:write</InfoChip>
+          <InfoChip tone={writeProbe.state === "success" ? "success" : writeProbe.state === "denied" ? "danger" : "default"}>http {statusLabel(writeProbe.status)}</InfoChip>
+        </div>
+        <p class="caption">{writeProbe.detail}</p>
+        {#if writeResponse}
+          <p class="caption">App response: <strong>{writeResponse.message}</strong></p>
+        {/if}
+      </article>
+
+      {#if writeProbe.payload}
+        <pre>{writeProbe.payload}</pre>
       {/if}
     </Card>
   </section>
+
+  <Card class="notes-card">
+    <div class="section-head">
+      <CardHeader>
+        <SectionLabel>Notes</SectionLabel>
+        <h2>Protected sample payload</h2>
+      </CardHeader>
+      <StatusPill tone={probeTone(notesProbe.state)}>{notesVisibility}</StatusPill>
+    </div>
+
+    {#if notes}
+      <div class="note-list">
+        {#each notes.notes as note}
+          <article class="note-item">
+            <p class="note-id">{note.id}</p>
+            <h3>{note.title}</h3>
+            <p>{note.summary}</p>
+          </article>
+        {/each}
+      </div>
+      <pre>{notesProbe.payload}</pre>
+    {:else if notesProbe.state === "denied"}
+      <div class="denial-card">
+        <h3>Notes payload blocked by gateway</h3>
+        <p>The denial response stays visible so you can confirm that auth policy stopped the request before business data was returned.</p>
+      </div>
+      {#if notesProbe.payload}
+        <pre>{notesProbe.payload}</pre>
+      {/if}
+    {:else}
+      <p>{notesProbe.detail}</p>
+    {/if}
+  </Card>
 </main>
 
 <style>
@@ -236,7 +432,7 @@
     --lt-color-primary: #6f5a2f;
     --lt-color-primary-hover: #594822;
     --lt-color-on-primary: #fffdf8;
-    --lt-color-surface: rgba(255, 255, 255, 0.86);
+    --lt-color-surface: rgba(255, 255, 255, 0.88);
     --lt-color-surface-hover: #f4efe6;
     --lt-color-border: rgba(29, 39, 51, 0.12);
     --lt-color-border-muted: rgba(29, 39, 51, 0.08);
@@ -285,20 +481,22 @@
     align-items: start;
   }
 
+  .hero-metrics,
+  .note-list {
+    display: grid;
+    gap: 0.75rem;
+  }
+
   .lede {
     margin: 0;
     color: #5d6774;
     max-width: 54rem;
   }
 
-  .hero-metrics {
-    display: grid;
-    gap: 0.75rem;
-  }
-
   dt,
   .note-id,
-  .caption {
+  .caption,
+  .probe-label {
     display: block;
     font-size: 0.8rem;
     color: #6c7784;
@@ -312,10 +510,20 @@
     color: var(--lt-color-danger);
   }
 
-  .section-head {
+  .section-head,
+  .probe-head,
+  .action-row,
+  .probe-meta,
+  .scope-row {
     display: flex;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  .section-head,
+  .probe-head {
     justify-content: space-between;
-    gap: 1rem;
     align-items: start;
     margin-bottom: 1rem;
   }
@@ -330,8 +538,16 @@
     margin-bottom: 0.45rem;
   }
 
-  h1, h2 {
-    margin: 0 0 0.75rem;
+  h1,
+  h2,
+  h3,
+  p {
+    margin: 0;
+  }
+
+  h1,
+  h2 {
+    margin-bottom: 0.75rem;
   }
 
   pre {
@@ -339,6 +555,10 @@
     white-space: pre-wrap;
     word-break: break-word;
     font-size: 0.92rem;
+    padding: 1rem;
+    border-radius: 0.9rem;
+    background: rgba(247, 243, 234, 0.95);
+    border: 1px solid rgba(29, 39, 51, 0.08);
   }
 
   code {
@@ -348,27 +568,21 @@
   .identity-grid {
     display: grid;
     gap: 0.95rem;
-    margin: 0 0 1rem;
+    margin-bottom: 1rem;
   }
 
   .identity-grid dd {
     margin: 0.2rem 0 0;
   }
 
-  .scope-demo {
-    margin-top: 1rem;
-    display: flex;
-    gap: 0.75rem;
-    align-items: center;
-    flex-wrap: wrap;
-  }
-
-  .note-list {
+  .checks-card,
+  .notes-card {
     display: grid;
-    gap: 0.8rem;
-    margin-bottom: 1rem;
+    gap: 1rem;
   }
 
+  .probe-card,
+  .denial-card,
   .note-item {
     padding: 1rem;
     border-radius: 0.9rem;
@@ -376,20 +590,50 @@
     border: 1px solid rgba(29, 39, 51, 0.08);
   }
 
-  .note-item h3,
-  .note-item p {
-    margin: 0;
+  .probe-copy {
+    margin-bottom: 0.75rem;
+    color: var(--lt-color-text-muted);
   }
 
-  .note-item h3 {
-    margin-top: 0.25rem;
-    margin-bottom: 0.35rem;
+  .probe-badge {
+    border-radius: 999px;
+    padding: 0.35rem 0.7rem;
+    border: 1px solid var(--lt-color-border);
+    color: var(--lt-color-text-subtle);
+    background: rgba(255, 255, 255, 0.8);
+    font-size: 0.82rem;
+  }
+
+  .probe-badge--success {
+    background: var(--lt-color-success-surface);
+    color: var(--lt-color-success);
+    border-color: var(--lt-color-success-border);
+  }
+
+  .probe-badge--denied,
+  .probe-badge--error {
+    background: var(--lt-color-danger-surface);
+    color: var(--lt-color-danger);
+    border-color: var(--lt-color-danger-border);
+  }
+
+  .probe-badge--loading {
+    background: rgba(111, 90, 47, 0.08);
+    color: #6f5a2f;
+  }
+
+  .denial-card h3 {
+    margin-bottom: 0.45rem;
   }
 
   @media (max-width: 780px) {
-    .hero,
-    .dashboard {
+    .dashboard,
+    :global(.hero-card) {
       grid-template-columns: 1fr;
+    }
+
+    .shell {
+      padding: 1rem;
     }
   }
 </style>

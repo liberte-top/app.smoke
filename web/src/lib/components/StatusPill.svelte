@@ -1,6 +1,6 @@
 <script lang="ts">
   type Props = {
-    tone?: "idle" | "ready";
+    tone?: "idle" | "ready" | "danger" | "loading";
     children?: import("svelte").Snippet;
   };
 
@@ -28,5 +28,16 @@
     background: var(--lt-color-success-surface);
     color: var(--lt-color-success);
     border-color: var(--lt-color-success-border);
+  }
+
+  .status-pill--danger {
+    background: var(--lt-color-danger-surface);
+    color: var(--lt-color-danger);
+    border-color: var(--lt-color-danger-border);
+  }
+
+  .status-pill--loading {
+    background: rgba(111, 90, 47, 0.08);
+    color: #6f5a2f;
   }
 </style>

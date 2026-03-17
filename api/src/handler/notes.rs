@@ -39,7 +39,10 @@ pub struct CreateNote {
 #[derive(Serialize, ToSchema)]
 pub struct CreateNoteResponse {
     pub accepted: bool,
+    pub persisted: bool,
     pub title: String,
+    pub viewer: ViewerContext,
+    pub message: &'static str,
 }
 
 #[utoipa::path(
@@ -85,13 +88,17 @@ pub async fn list_notes(
 )]
 pub async fn create_note(
     State(_state): State<Arc<AppState>>,
+    headers: HeaderMap,
     Json(payload): Json<CreateNote>,
 ) -> (axum::http::StatusCode, Json<CreateNoteResponse>) {
     (
         axum::http::StatusCode::CREATED,
         Json(CreateNoteResponse {
             accepted: true,
+            persisted: false,
             title: payload.title,
+            viewer: viewer_from_headers(&headers),
+            message: "Write path reached business app; persistence stays disabled in smoke mode.",
         }),
     )
 }

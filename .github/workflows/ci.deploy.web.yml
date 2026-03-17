@@ -30,16 +30,20 @@ jobs:
         with:
           node-version: "22.18.0"
 
+      - name: Configure GitHub Packages auth
+        run: |
+          set -euo pipefail
+          cat > "$HOME/.npmrc" <<EOF
+          @liberte-top:registry=https://npm.pkg.github.com
+          //npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}
+          EOF
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Enable corepack pnpm
         run: |
           corepack enable
           corepack prepare pnpm@10.28.0 --activate
-
-      - name: Checkout packages repo for local-link dependency
-        run: |
-          set -euo pipefail
-          rm -rf ../packages
-          git clone "https://x-access-token:${{ secrets.KUBERNETES_REPO_TOKEN }}@github.com/liberte-top/packages.git" ../packages
 
       - name: Install dependencies
         working-directory: web
@@ -52,7 +56,7 @@ jobs:
         run: pnpm build
 
       - name: Build web image
-        run: docker build -f ./web/Dockerfile ..
+        run: docker build --build-arg GITHUB_PACKAGES_TOKEN="${{ secrets.GITHUB_TOKEN }}" -f ./web/Dockerfile ..
 
       - name: Setup Buildx
         if: github.event_name != 'pull_request'
@@ -73,6 +77,8 @@ jobs:
           context: ..
           file: ../app.smoke/web/Dockerfile
           push: true
+          build-args: |
+            GITHUB_PACKAGES_TOKEN=${{ secrets.GITHUB_TOKEN }}
           tags: |
             ghcr.io/liberte-top/app-smoke-web:main
             ghcr.io/liberte-top/app-smoke-web:sha-${{ github.sha }}
